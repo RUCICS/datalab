@@ -56,9 +56,35 @@ int samesign(int x, int y) {
  *   Max ops: 25
  *   Difficulty: 4
  */
-int logtwo(int v) {
-        int count = 0;
-    return count;
+int logtwo(int v)
+{
+
+     // 检查最高位是否在16位以上,如果是result+16，以此类推 ; 若最高位多于16位，v就右移16位，否则右移0位，以此类推
+      int result = 0;
+
+    int shift16 = (v > 0xFFFF) << 4;//值为0或16
+    result |= shift16;
+    v >>= shift16;
+
+
+    int shift8 = (v > 0xFF) << 3;
+    result |= shift8;
+    v >>= shift8;
+
+    int shift4 = (v > 0xF) << 2;
+    result |= shift4;
+    v >>= shift4;
+
+  
+    int shift2 = (v > 0x3) << 1;
+    result |= shift2;
+    v >>= shift2;
+
+    result |= (v > 0x1);//这里result直接与真值或运算，可以减少步骤
+
+    return result;
+
+
 }
 
 /*
@@ -172,10 +198,58 @@ int leftBitCount(int x) {
  *   Legal ops: if else while for & | ~ + - >> << < > ! ==
  *   Max ops: 30
  *   Difficulty: 4
- */
-unsigned float_i2f(int x) {
-    return 2;
+ */unsigned float_i2f(int x)
+{
+    if (x == 0)
+        return 0;          //  x = 0 的情况
+    if (x == 0x80000000)   // x = TMin，-2147483648 
+        return 0xCF000000; 
+    unsigned int e = 0, E, M, temp_x, round;
+    unsigned int result;
+    
+    unsigned s = x >> 31 & 1;
+
+    if (x < 0)
+    {
+        x = -x;
+    }
+    temp_x = x;
+    while ((temp_x >> 1) >= 1)
+    {
+        temp_x >>= 1;
+        e++;
+    }
+    E = e + 127;
+    x <<= (31 - e);//小数部分
+    M = (x >> 8) & 0x7fffff;//使尾数对齐
+    //一个 int 有 32 位，其中有 31 位可以用以表示精度，而 float 的尾数位有 23 位，所以我们需要将 int 的精度位右移 8 位（即损失 8 位精度），从而得到 float 的尾数位。
+    round = x & 0xff;//要舍入的小数部分，取x的最低八位。根据 “四舍六入五成双” 的原则，对于最低位是否要舍入进行判断。
+    if (round > 0x80)//10000000，即128，如果尾数部分的最低8位大于128，说明我们需要对尾数进行向上舍入
+       M += 1;//阶码++
+    else if (round == 0x80)
+    {
+        if (M & 1)
+        {
+            M += 1;
+        }
+    }//如果最低8位等于128，根据“四舍六入五成双”舍入规则，
+     //如果当前尾数 M 的最低位为1，则我们加1。
+     //如果最低位为0，则不做变化。
+    if (M >> 23)
+    {
+        M &= 0x7fffff;
+        E += 1;
+    }//检查尾数 M 是否超出了23位。如果最高位为1（即 M >> 23 为真），这意味着尾数溢出，
+//因此保留尾数的低23位，阶码 E 加1
+
+    result = (s << 31) | M | (E << 23);
+
+    return result;
 }
+
+
+
+
 
 /*
  * floatScale2 - Return bit-level equivalent of expression 2*f for
@@ -189,7 +263,21 @@ unsigned float_i2f(int x) {
  *   Difficulty: 4
  */
 unsigned floatScale2(unsigned uf) {
-    return 2;
+   unsigned e = (uf >> 23) & 0xFF;
+    if (e == 0xFF)
+    {
+        return uf; // 如果是 NaN，直接返回
+    }
+    // 检查e是否为 0, 是则直接左移尾数位
+    if (e == 0)
+    {
+        return (uf << 1) | (uf & 0x80000000); // 保持符号位不变
+    }
+
+    unsigned newE = e + 1;
+    unsigned result = (uf & 0x807FFFFF) | (newE << 23);
+
+    return result;
 }
 
 /*
@@ -248,6 +336,20 @@ int float64_f2i(unsigned uf1, unsigned uf2)
  *   Max ops: 30
  *   Difficulty: 4
  */
-unsigned floatPower2(int x) {
-    return 2;
+
+    unsigned floatPower2(int x) {
+    // 计算新的指数值
+    int newE = x + 127;
+
+    // 检查结果是否超出范围
+    if (newE >= 255) {
+        return 0x7F800000; // 返回 +INF
+    } else if (newE <= 0) {
+        return 0x00000000; // 返回 0.0
+    }
+
+    // 构造新的浮点数表示
+    unsigned result = (newE << 23);
+
+    return result;
 }
